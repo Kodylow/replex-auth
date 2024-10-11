@@ -1,0 +1,15 @@
+{
+  "name": "my-project",
+  "module": "index.ts",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "type": "module",
+  "dependencies": {
+    "@elysiajs/cors": "^1.1.1",
+    "@replit/database": "^3.0.1",
+    "bun": "^1.1.30",
+    "elysia": "^1.1.20",
+    "pg": "^8.13.0"
+  }
+}

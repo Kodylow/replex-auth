@@ -1,0 +1,24 @@
+entrypoint = "index.ts"
+
+hidden = [".config", "bun.lockb"]
+modules = ["bun-1.1"]
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+build = [
+    "sh",
+    "-c",
+    "mkdir .build && bun build index.ts --target bun > .build/index.js",
+]
+run = ["bun", ".build/index.js"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+
+[auth]
+pageEnabled = true
+buttonEnabled = false
