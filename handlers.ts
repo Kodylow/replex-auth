@@ -1,51 +1,88 @@
-import { Context } from 'elysia'
+import type { Context } from 'elysia'
 import { generateHtmlResponse } from './htmlResponse'
-import { getUserByConnectionCode, getUserToken, storeNewToken } from './database'
 import { randomUUID } from 'crypto'
+import database, { type User } from './database'
+
+const parseStringToArray = (str: string | null): string[] => {
+  if (!str) return [];
+  try {
+    // Try parsing as JSON
+    return JSON.parse(str);
+  } catch {
+    // If JSON parsing fails, split by comma
+    return str.split(',').map(item => item.trim());
+  }
+};
 
 export async function handleRoot({ request }: Context) {
+  console.log('Handling root request')
   const userId = request.headers.get("X-Replit-User-Id")
   const userName = request.headers.get("X-Replit-User-Name")
+  const userProfileImage = request.headers.get("X-Replit-User-Profile-Image")
+  const userRoles = request.headers.get("X-Replit-User-Roles")
+  const userTeams = request.headers.get("X-Replit-User-Teams")
+  const userUrl = request.headers.get("X-Replit-User-Url")
+
+  console.log(`User ID: ${userId}, User Name: ${userName}`)
 
   if (!userId || !userName) {
+    console.log('User not logged in')
     return new Response("User not logged in", { status: 401 })
   }
 
   try {
-    let token = await getUserToken(userId)
+    console.log(`Fetching token for user ${userId}`)
+    let token = await database.getUserToken(userId)
     if (!token) {
+      console.log('Token not found, generating new token')
       token = randomUUID()
-      await storeNewToken(userId, userName, token)
+      console.log(`Storing new token for user ${userId}`)
+      const user: User = {
+        user_id: userId,
+        user_name: userName,
+        token,
+        profile_image: userProfileImage ?? '',
+        roles: parseStringToArray(userRoles),
+        teams: parseStringToArray(userTeams),
+        url: userUrl ?? ''
+      }
+      await database.storeNewToken(user)
     }
+    console.log('Generating HTML response')
     return generateHtmlResponse(userId, userName, token)
   } catch (error) {
+    console.error(`Error processing request for userId ${userId}:`, error)
     return new Response(`Error processing request for userId ${userId}: ${error}`, { status: 500 })
   }
 }
 
 export async function handleGetUser({ query }: Context) {
-  const connectionCode = query.connection_code
+  console.log('Handling getUser request')
+  const token = query.token
 
-  if (!connectionCode) {
-    return new Response("Missing connection_code parameter", { status: 400 })
+  console.log(`Token: ${token}`)
+
+  if (!token) {
+    console.log('Missing token parameter')
+    return new Response("Missing token parameter", { status: 400 })
   }
 
   try {
-    const user = await getUserByConnectionCode(connectionCode)
+    console.log(`Fetching user by token: ${token}`)
+    const user = await database.getUserByToken(token)
 
     if (!user) {
-      return new Response("Invalid connection code", { status: 404 })
+      console.log('Invalid token')
+      return new Response("Invalid token", { status: 404 })
     }
 
-    return new Response(JSON.stringify({
-      userId: user.user_id,
-      userName: user.user_name
-    }), {
+    console.log(`User found: ${user.user_id}`)
+    return new Response(JSON.stringify(user), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error(`Error processing connection code ${connectionCode}:`, error)
+    console.error(`Error processing token ${token}:`, error)
     return new Response("Internal server error", { status: 500 })
   }
 }

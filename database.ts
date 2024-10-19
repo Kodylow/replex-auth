@@ -1,73 +1,119 @@
-import { Client } from 'pg';
+import Client from "@replit/database";
 
-const client = new Client({
-  connectionString: process.env.DATABASE_URL + "?sslmode=require",
-});
-
-export async function connectToDatabase() {
-  try {
-    await client.connect();
-    console.log("Connected to PostgreSQL");
-  } catch (error) {
-    console.error("Error connecting to PostgreSQL:", error);
-    throw error;
-  }
-}
-
-export async function createUsersTable() {
-  const createTableQuery = `
-    CREATE TABLE IF NOT EXISTS users (
-      user_id VARCHAR(255) PRIMARY KEY,
-      user_name VARCHAR(255) NOT NULL,
-      token VARCHAR(255) NOT NULL UNIQUE
-    );
-  `;
-  try {
-    await client.query(createTableQuery);
-    console.log("Users table is ready.");
-  } catch (error) {
-    console.error("Error creating users table:", error);
-    throw error;
-  }
-}
-
-export async function getUserToken(userId: string): Promise<string | null> {
-  try {
-    const res = await client.query('SELECT token FROM users WHERE user_id = $1', [userId]);
-    if (res.rows.length > 0) {
-      return res.rows[0].token;
-    }
-    return null;
-  } catch (error) {
-    console.error(`Error fetching token for userId ${userId}:`, error);
-    throw error;
-  }
-}
-
-type User = {
+export interface User {
   user_id: string;
   user_name: string;
-};
+  token: string;
+  profile_image: string;
+  roles: string[];
+  teams: string[];
+  url: string;
+}
 
-export async function getUserByConnectionCode(connectionCode: string): Promise<User | null> {
-  try {
-    const res = await client.query('SELECT user_id, user_name FROM users WHERE token = $1', [connectionCode]);
-    if (res.rows.length > 0) {
-      return res.rows[0];
+class ReplitDb {
+  private static instance: ReplitDb;
+  private client: Client;
+
+  private constructor() {
+    this.client = new Client();
+    console.log("ReplitDb instance created");
+  }
+
+  static getInstance(): ReplitDb {
+    if (!ReplitDb.instance) {
+      ReplitDb.instance = new ReplitDb();
+      console.log("New ReplitDb instance created");
+    } else {
+      console.log("Returning existing ReplitDb instance");
     }
+    return ReplitDb.instance;
+  }
+
+  async connect(): Promise<void> {
+    console.log("Connecting to Replit database...");
+    // No need to explicitly connect to Replit DB
+    console.log("Connected to Replit database");
+  }
+
+  async getUserToken(userId: string): Promise<string | null> {
+    console.log(`Fetching token for user ID: ${userId}`);
+    const result = await this.client.get(userId);
+    if (result.ok) {
+      const user = result.value as User;
+      console.log(`Token found for user ID: ${userId}`);
+      return user?.token ?? null;
+    }
+    console.log(`No token found for user ID: ${userId}`);
     return null;
-  } catch (error) {
-    console.error(`Error fetching user for connection code ${connectionCode}:`, error);
-    throw error;
+  }
+
+  async getUserByToken(token: string): Promise<Omit<User, 'token'> | null> {
+    console.log(`Searching for user with token: ${token}`);
+    const keys = await this.client.list();
+    if (keys.ok) {
+      for (const key of keys.value) {
+        console.log(`Checking user with ID: ${key}`);
+        const result = await this.client.get(key);
+        if (result.ok) {
+          const user = result.value as User;
+          if (user.token === token) {
+            console.log(`User found with token: ${token}`);
+            const { token: _, ...userWithoutToken } = user;
+            return userWithoutToken;
+          }
+        }
+      }
+    }
+    console.log(`No user found with token: ${token}`);
+    return null;
+  }
+
+  async storeNewToken(
+    user: User
+  ): Promise<void> {
+    console.log(`Storing new token and user info for user ID: ${user.user_id}`);
+    try {
+      // Ensure roles is an array
+      if (typeof user.roles === 'string') {
+        user.roles = this.parseStringToArray(user.roles);
+      }
+      
+      // Ensure teams is an array
+      if (typeof user.teams === 'string') {
+        user.teams = this.parseStringToArray(user.teams);
+      }
+
+      await this.client.set(user.user_id, user);
+      console.log(`Token and user info stored successfully for user ID: ${user.user_id}`);
+    } catch (error) {
+      console.error(`Error storing token for user ID ${user.user_id}:`, error);
+      throw error; // Re-throw the error to be handled by the caller
+    }
+  }
+
+  private parseStringToArray(input: string): string[] {
+    try {
+      // First, try parsing as JSON
+      return JSON.parse(input);
+    } catch (e) {
+      // If JSON parsing fails, split by comma and trim
+      return input.split(',').map(item => item.trim());
+    }
+  }
+
+  async wipeDatabase(): Promise<void> {
+    console.log("Wiping database...");
+    const keys = await this.client.list();
+    if (keys.ok) {
+      for (const key of keys.value) {
+        await this.client.delete(key);
+      }
+    }
+    console.log("Database wiped successfully");
   }
 }
 
-// Update your storeNewToken function to include user_name
-export async function storeNewToken(userId: string, userName: string, token: string): Promise<void> {
-  try {
-    await client.query('INSERT INTO users (user_id, user_name, token) VALUES ($1, $2, $3)', [userId, userName, token]);
-  } catch (error) {
-    console.error(`Error storing token for userId ${userId}:`, error);
-    throw error;
-  }
-}
+// Create and export a single instance
+const database = ReplitDb.getInstance();
+console.log("Database instance exported");
+export default database;

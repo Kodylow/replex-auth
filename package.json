@@ -7,9 +7,9 @@
   "type": "module",
   "dependencies": {
     "@elysiajs/cors": "^1.1.1",
+    "@prisma/client": "^5.21.1",
     "@replit/database": "^3.0.1",
     "bun": "^1.1.30",
-    "elysia": "^1.1.20",
-    "pg": "^8.13.0"
+    "elysia": "^1.1.20"
   }
 }

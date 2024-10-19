@@ -16,7 +16,7 @@ export function generateHtmlResponse(userId: string, userName: string | null, to
       <h1>Replex-Auth</h1>
       <p><strong>User ID:</strong> ${userId}</p>
       <p><strong>User Name:</strong> ${userName || "Unknown"}</p>
-      <p><strong>Connection Code:</strong> ${token}</p>
+      <p><strong>Token:</strong> ${token}</p>
     </body>
     </html>`;
 
