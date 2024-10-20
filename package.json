@@ -1,6 +1,9 @@
 {
   "name": "my-project",
   "module": "index.ts",
+  "scripts": {
+    "dev": "bun build index.ts --target bun > .build/index.js && bun run .build/index.js"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "tailwindcss": "^3.4.14"
